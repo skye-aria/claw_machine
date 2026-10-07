@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>綽貓喵公仔機 v3 - 可玩基準版</title>
+<title>綽貓喵公仔機 v3｜公仔連續掉落＋出口尺寸修正版</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:#160d17;min-height:100%;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;overflow-x:hidden}
@@ -12,7 +12,7 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 #machine{position:absolute;inset:0;width:100%;height:100%;display:block}
 #playfield{position:absolute;left:5.0%;top:20.4%;width:90.0%;height:45.8%;overflow:hidden;border-radius:1.5%}
 #toys{position:absolute;inset:0;z-index:3}
-.toy{position:absolute;transform-origin:center bottom;filter:drop-shadow(0 4px 5px rgba(80,20,50,.22));transition:transform .18s,opacity .18s;pointer-events:none}
+.toy{position:absolute;transform-origin:center center;filter:drop-shadow(0 4px 5px rgba(80,20,50,.22));transition:transform .18s,opacity .18s;pointer-events:none}
 .toy img{width:100%;height:100%;object-fit:contain;display:block}
 #claw{position:absolute;z-index:12;width:27%;left:1.5%;top:4.0%;pointer-events:none;transition:left .06s linear,top .16s ease-out;will-change:left,top}
 #claw img{width:100%;display:block}
@@ -23,8 +23,6 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 #dropToy{position:absolute;width:65%;left:18%;bottom:5%;display:none}
 #dropToy.show{display:block;animation:drop 1.25s ease-in forwards}
 @keyframes drop{0%{transform:translateY(-15%) rotate(-8deg);opacity:1}45%{transform:translateY(25%) rotate(8deg);opacity:1}100%{transform:translateY(90%) rotate(16deg);opacity:0}}
-
-/* Controls: moved to the Photoshop reference positions. */
 #joystick{position:absolute;z-index:20;left:6.8%;top:61.8%;width:14.2%;height:13.8%;touch-action:none;cursor:grab}
 #joystick:active{cursor:grabbing}
 #joystick img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
@@ -37,9 +35,8 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 #money img{width:100%;display:block}
 #money.insert{animation:insert .7s ease forwards}
 @keyframes insert{0%{transform:translateY(0) rotate(2deg)}55%{transform:translateY(-8%) rotate(1deg)}100%{transform:translateY(-18%) scale(.72) rotate(0);opacity:0}}
-
 #exitPrize{position:absolute;z-index:18;left:34%;top:82.2%;width:32%;height:9%;display:flex;align-items:center;justify-content:center;pointer-events:none}
-#exitPrize .prize{width:31%;animation:pop .75s ease-out forwards;filter:drop-shadow(0 5px 5px rgba(70,10,45,.25))}
+#exitPrize .prize{width:72%;animation:pop .75s ease-out forwards;filter:drop-shadow(0 5px 5px rgba(70,10,45,.25))}
 @keyframes pop{0%{transform:translateY(40%) scale(.3);opacity:0}60%{transform:translateY(-10%) scale(1.05);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
 #collectionBtn,#soundBtn{position:absolute;z-index:30;border:0;background:rgba(255,255,255,.78);color:#7a2c58;border-radius:999px;font-weight:800;box-shadow:0 3px 10px rgba(100,20,70,.18);cursor:pointer}
 #collectionBtn{right:2.5%;top:2%;padding:.7em 1em;font-size:clamp(10px,1.8vw,14px)}
@@ -108,19 +105,52 @@ const playfield=document.getElementById("playfield"),toysEl=document.getElementB
 const rand=(a,b)=>a+Math.random()*(b-a),wait=ms=>new Promise(r=>setTimeout(r,ms));
 function chooseType(){let r=Math.random();return r<.58?TYPES[0]:r<.92?TYPES[1]:TYPES[2]}
 function spawnToys(){
- toysEl.innerHTML="";const count=18;const rows=[4,5,5,4],ys=[51,60,69,78];
- rows.forEach((n,row)=>{const spacing=73/(n+1);for(let j=0;j<n;j++){
-  const t=chooseType(),el=document.createElement("div");el.className="toy";el.dataset.id=t.id;
-  const visualScale=rand(.92,1.08);
-  el.style.width=(t.scale*100*visualScale)+"%";el.style.height=(t.scale*100*visualScale)+"%";
-  const center=50,jitter=rand(-3.4,3.4),x=center+(j-(n-1)/2)*spacing+jitter;
-  const y=ys[row]+rand(-2.1,2.1);
-  el.style.left=Math.max(8,Math.min(78,x))+"%";
-  el.style.top=y+"%";
-  el.style.transform=`rotate(${rand(-16,16)}deg)`;
-  el.style.zIndex=10+row;
-  const img=document.createElement("img");img.src=t.img;img.alt=t.name;el.appendChild(img);toysEl.appendChild(el);
- }});
+ toysEl.innerHTML="";
+ const count=18;
+ // Tighter rows so the toys visually support each other instead of floating.
+ const rows=[4,5,5,4],ys=[49,57.5,66,74.5];
+
+ rows.forEach((n,row)=>{
+   const spacing=72/(n+1);
+   for(let j=0;j<n;j++){
+     const t=chooseType(),el=document.createElement("div");
+     el.className="toy";
+     el.dataset.id=t.id;
+
+     const visualScale=rand(.94,1.06);
+     el.style.width=(t.scale*100*visualScale)+"%";
+     el.style.height=(t.scale*100*visualScale)+"%";
+
+     const center=50;
+     const jitter=rand(-2.6,2.6);
+     const x=center+(j-(n-1)/2)*spacing+jitter;
+     const y=ys[row]+rand(-1.2,1.2);
+
+     el.style.left=Math.max(9,Math.min(77,x))+"%";
+     el.style.top=y+"%";
+
+     // Mostly upright/tilted, with a smaller number genuinely lying sideways.
+     const pose=Math.random();
+     let rot;
+     if(pose<0.16){
+       rot=rand(68,92);
+     }else if(pose<0.32){
+       rot=rand(-92,-68);
+     }else if(pose<0.62){
+       rot=rand(-28,28);
+     }else{
+       rot=rand(-12,12);
+     }
+     el.style.transform=`rotate(${rot}deg)`;
+     el.style.zIndex=10+row;
+
+     const img=document.createElement("img");
+     img.src=t.img;
+     img.alt=t.name;
+     el.appendChild(img);
+     toysEl.appendChild(el);
+   }
+ });
 }
 function updateCredit(){credit.textContent=state.credits}
 function setClaw(){claw.style.left=(state.clawX-13.5)+"%";claw.style.top=state.clawY+"%";
@@ -129,9 +159,30 @@ function toastMsg(msg,ms=1500){toast.textContent=msg;toast.classList.add("show")
 function beep(freq=500,dur=.08){if(!state.sound)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=beep.ctx||(beep.ctx=new C()),o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;o.type="sine";g.gain.value=.045;o.connect(g);g.connect(c.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.stop(c.currentTime+dur)}catch(e){}}
 function moveJoystick(dx){if(state.busy||state.credits<=0)return;state.clawX=Math.max(15,Math.min(85,state.clawX+dx));setClaw();stick.style.transform=`rotate(${dx>0?18:-18}deg)`;clearTimeout(moveJoystick.t);moveJoystick.t=setTimeout(()=>stick.style.transform="rotate(0deg)",100)}
 function nearestToy(){
- const fr=playfield.getBoundingClientRect(),cr=claw.getBoundingClientRect(),cx=(cr.left-fr.left)+cr.width/2,cy=(cr.top-fr.top)+cr.height*.72;let best=null,bestD=Infinity;
- document.querySelectorAll(".toy").forEach(el=>{if(el.dataset.removed)return;const r=el.getBoundingClientRect(),tx=r.left-fr.left+r.width/2,ty=r.top-fr.top+r.height*.34,d=Math.hypot(tx-cx,ty-cy);if(d<bestD){bestD=d;best=el}});
- return {el:best,d:bestD};
+ const fr=playfield.getBoundingClientRect(),cr=claw.getBoundingClientRect();
+ const clawCx=(cr.left-fr.left)+cr.width/2;
+ const clawLeft=(cr.left-fr.left)+cr.width*.18;
+ const clawRight=(cr.left-fr.left)+cr.width*.82;
+ let candidates=[],fallback=null,fallbackD=Infinity;
+ document.querySelectorAll(".toy").forEach(el=>{
+   if(el.dataset.removed)return;
+   const r=el.getBoundingClientRect();
+   const left=r.left-fr.left,right=r.right-fr.left;
+   const tx=left+r.width/2,ty=r.top-fr.top+r.height*.5;
+   const overlap=right>=clawLeft && left<=clawRight;
+   const d=Math.hypot(tx-clawCx,ty-(cr.bottom-fr.top));
+   if(overlap)candidates.push({el,r,tx,ty});
+   if(d<fallbackD){fallbackD=d;fallback={el,r,tx,ty};}
+ });
+ if(candidates.length){
+   candidates.sort((a,b)=>{
+     const dy=a.r.top-b.r.top;
+     return Math.abs(dy)>2 ? dy : Math.abs(a.tx-clawCx)-Math.abs(b.tx-clawCx);
+   });
+   const t=candidates[0];
+   return {el:t.el,d:Math.hypot(t.tx-clawCx,t.ty-(cr.bottom-fr.top)),r:t.r};
+ }
+ return fallback ? {el:fallback.el,d:fallbackD,r:fallback.r} : {el:null,d:Infinity};
 }
 function removeToy(el){if(!el)return;el.dataset.removed="1";el.style.opacity="0";setTimeout(()=>el.remove(),220)}
 function setCollected(id){state.collected[id]=(Number(state.collected[id])||0)+1;localStorage.setItem("cheukcat_collection_v3",JSON.stringify(state.collected))}
@@ -139,10 +190,12 @@ function award(t){setCollected(t.id);exitPrize.innerHTML=`<img class="prize" src
 async function moveClawTo(x,y,duration){const sx=state.clawX,sy=state.clawY,steps=Math.max(1,Math.round(duration/30));for(let i=1;i<=steps;i++){await wait(duration/steps);const p=i/steps;state.clawX=sx+(x-sx)*p;state.clawY=sy+(y-sy)*p;setClaw()}}
 async function tryClaw(){
  if(state.busy||state.credits<=0)return;state.busy=true;state.credits--;updateCredit();buttonImg.src="button_pressed.png";beep(330,.08);
- const target=nearestToy();if(!target.el){state.busy=false;buttonImg.src="button_normal.png";return}
- const tr=target.el.getBoundingClientRect(),fr=playfield.getBoundingClientRect();
+ const target=nearestToy();
+ if(!target.el){state.busy=false;buttonImg.src="button_normal.png";return}
+ const tr=target.r || target.el.getBoundingClientRect(), fr=playfield.getBoundingClientRect();
  const targetX=((tr.left-fr.left+tr.width/2)/fr.width)*100;
- const targetY=Math.max(18,Math.min(58,((tr.top-fr.top)/fr.height)*100+4));
+ // Descend only to the selected topmost toy.
+ const targetY=Math.max(8,Math.min(56,((tr.top-fr.top)/fr.height)*100-8));
  const horizontalGap=Math.abs(targetX-state.clawX),aligned=horizontalGap<=11;
  await moveClawTo(state.clawX,targetY,1500);
  clawImg.src="claw_closed.png";await wait(420);
@@ -151,9 +204,25 @@ async function tryClaw(){
    const type=TYPES.find(x=>x.id===target.el.dataset.id);removeToy(target.el);
    carriedImg.src=type.img;carried.style.display="block";setClaw();claw.classList.add("carry");
    await moveClawTo(state.clawX,7,1300);await moveClawTo(15,7,1900);
-   clawImg.src="claw_open.png";await wait(420);carried.style.display="none";claw.classList.remove("carry");
-   dropToy.src=type.img;dropToy.style.display="block";dropToy.classList.remove("show");void dropToy.offsetWidth;dropToy.classList.add("show");
-   await wait(1250);dropToy.style.display="none";award(type);
+   clawImg.src="claw_open.png";
+
+      // The captured plush now drops continuously from the claw into the
+      // left chute. It stays fully visible: no fade, teleport, or second
+      // disappearing copy.
+      carried.style.display="block";
+      carried.style.opacity="1";
+      carried.style.left="15%";
+      carried.style.top="26%";
+      carried.style.transform="translate(-50%,0) scale(1)";
+      carried.style.transition="top .75s ease-in";
+      await wait(80);
+      carried.style.top="73%";
+      await wait(760);
+      carried.style.transition="";
+      carried.style.display="none";
+      claw.classList.remove("carry");
+      await wait(180);
+   award(type);
    if(toysEl.querySelectorAll(".toy").length===0){await wait(500);spawnToys();toastMsg("🧸 公仔補充完成！繼續挑戰吧～",1500)}
  }else{clawImg.src="claw_open.png";await wait(220);toastMsg(aligned?"抓到了！但滑掉了～":"爪子還差一點，再慢慢對準～",1300);beep(240,.10)}
  await moveClawTo(15,4,1100);buttonImg.src="button_normal.png";state.busy=false;
