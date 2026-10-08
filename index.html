@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>綽貓喵公仔機 v3｜公仔連續掉落＋出口尺寸修正版</title>
+<title>綽貓喵公仔機 v3｜綽貓Q版接公仔互動版</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:#160d17;min-height:100%;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;overflow-x:hidden}
@@ -68,6 +68,48 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
   transform-origin:top center;
   transition:left .06s linear,height .06s linear;
 }
+
+/* Q版綽貓角色：待機／接公仔 */
+#cheukcatCharacter{
+  position:absolute;
+  z-index:8;
+  left:6.5%;
+  top:38%;
+  width:25.5%;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-user-drag:none;
+}
+#cheukcatCharacter img{
+  width:93%;
+  height:auto;
+  display:block;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+#leftPlatformForeground{
+  position:absolute;
+  z-index:9;
+  left:6.5%;
+  top:59.2%;
+  width:21.1%;
+  height:auto;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+
+/* 防止手機長按／右鍵跳出圖片下載選單 */
+#game img{
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-user-drag:none;
+  user-drag:none;
+}
 </style>
 </head>
 <body>
@@ -76,6 +118,12 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 <button id="soundBtn" aria-label="音效">🔊</button>
 <button id="collectionBtn">📖 收藏</button>
 <div id="hint">投入 $500SC → 3 次機會｜拖住搖桿移動</div>
+
+<div id="cheukcatCharacter">
+  <img id="cheukcatCharacterImg" src="cheukcat_idle.png" alt="綽貓">
+</div>
+<img id="leftPlatformForeground" src="left_platform_foreground.png" alt="">
+
 <div id="playfield">
 <div id="cable"></div>
 <div id="toys"></div>
@@ -100,6 +148,8 @@ const TYPES=[
 const savedCollection=JSON.parse(localStorage.getItem("cheukcat_collection_v3")||localStorage.getItem("cheukcat_collection_v2")||"{}");
 Object.keys(savedCollection).forEach(k=>{savedCollection[k]=Number(savedCollection[k])||0});
 const state={credits:0,clawX:15,clawY:4,busy:false,sound:true,collected:savedCollection};
+const cheukcatCharacter=document.getElementById("cheukcatCharacter");
+const cheukcatCharacterImg=document.getElementById("cheukcatCharacterImg");
 const cable=document.getElementById("cable");
 const playfield=document.getElementById("playfield"),toysEl=document.getElementById("toys"),claw=document.getElementById("claw"),clawImg=document.getElementById("clawImg"),carried=document.getElementById("carriedToy"),carriedImg=document.getElementById("carriedToyImg"),stick=document.getElementById("joystickStick"),credit=document.getElementById("credit"),money=document.getElementById("money"),button=document.getElementById("button"),buttonImg=document.getElementById("buttonImg"),dropToy=document.getElementById("dropToy"),exitPrize=document.getElementById("exitPrize"),toast=document.getElementById("toast"),joystick=document.getElementById("joystick");
 const rand=(a,b)=>a+Math.random()*(b-a),wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -153,6 +203,10 @@ function spawnToys(){
  });
 }
 function updateCredit(){credit.textContent=state.credits}
+function setCheukcatPose(pose){
+  if(!cheukcatCharacterImg)return;
+  cheukcatCharacterImg.src = pose==="catch" ? "cheukcat_catch.png" : "cheukcat_idle.png";
+}
 function setClaw(){claw.style.left=(state.clawX-13.5)+"%";claw.style.top=state.clawY+"%";
       if(cable){cable.style.left=(state.clawX-0.55)+"%";cable.style.height=Math.max(1,state.clawY+2.2)+"%";}if(carried.style.display!=="none"){carried.style.left=state.clawX+"%";carried.style.top=(state.clawY+19)+"%"}}
 function toastMsg(msg,ms=1500){toast.textContent=msg;toast.classList.add("show");clearTimeout(toastMsg.t);toastMsg.t=setTimeout(()=>toast.classList.remove("show"),ms)}
@@ -204,6 +258,8 @@ async function tryClaw(){
    const type=TYPES.find(x=>x.id===target.el.dataset.id);removeToy(target.el);
    carriedImg.src=type.img;carried.style.display="block";setClaw();claw.classList.add("carry");
    await moveClawTo(state.clawX,7,1300);await moveClawTo(15,7,1900);
+   setCheukcatPose("catch");
+   await wait(120);
    clawImg.src="claw_open.png";
 
       // The captured plush now drops continuously from the claw into the
@@ -222,10 +278,14 @@ async function tryClaw(){
       carried.style.display="none";
       claw.classList.remove("carry");
       await wait(180);
+      setCheukcatPose("idle");
    award(type);
    if(toysEl.querySelectorAll(".toy").length===0){await wait(500);spawnToys();toastMsg("🧸 公仔補充完成！繼續挑戰吧～",1500)}
  }else{clawImg.src="claw_open.png";await wait(220);toastMsg(aligned?"抓到了！但滑掉了～":"爪子還差一點，再慢慢對準～",1300);beep(240,.10)}
- await moveClawTo(15,4,1100);buttonImg.src="button_normal.png";state.busy=false;
+ await moveClawTo(15,4,1100);
+ buttonImg.src="button_normal.png";
+ setCheukcatPose("idle");
+ state.busy=false;
  if(state.credits===0)toastMsg("本次 3 次機會用完！再投入 $500SC 試試吧～",2200);
 }
 let joyActive=false,joyPointerX=0,joyTimer=null;
@@ -240,6 +300,14 @@ document.getElementById("soundBtn").addEventListener("click",e=>{state.sound=!st
 document.getElementById("collectionBtn").addEventListener("click",()=>{const c=document.getElementById("collection");c.innerHTML=TYPES.map(t=>{const n=Number(state.collected[t.id])||0;return `<div class="card"><img src="${t.img}" alt="${t.name}"><div class="name">${n?"✓ ":"🔒 "}${t.name}</div><div class="status">${n?t.rarity:"尚未取得"}</div><div class="qty">已夾到：${n} 隻</div></div>`}).join("");const total=TYPES.reduce((a,t)=>a+(Number(state.collected[t.id])||0),0),kinds=TYPES.filter(t=>(Number(state.collected[t.id])||0)>0).length;document.getElementById("count").textContent=`收藏種類：${kinds} / ${TYPES.length}　｜　總共夾到：${total} 隻`;document.getElementById("modal").classList.add("show")});
 document.getElementById("closeModal").addEventListener("click",()=>document.getElementById("modal").classList.remove("show"));
 spawnToys();updateCredit();setClaw();setTimeout(()=>document.getElementById("hint").classList.add("show"),400);setTimeout(()=>document.getElementById("hint").classList.remove("show"),3800);
+
+document.addEventListener("contextmenu",e=>{
+  if(e.target.closest("#game")) e.preventDefault();
+},{passive:false});
+document.addEventListener("dragstart",e=>{
+  if(e.target.closest("#game")) e.preventDefault();
+},{passive:false});
+
 </script>
 </body>
 </html>
