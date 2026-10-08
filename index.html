@@ -14,6 +14,15 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 #toys{position:absolute;inset:0;z-index:3}
 .toy{position:absolute;transform-origin:center center;filter:drop-shadow(0 4px 5px rgba(80,20,50,.22));transition:transform .18s,opacity .18s;pointer-events:none}
 .toy img{width:100%;height:100%;object-fit:contain;display:block}
+/* Claw approaching: a very subtle physical jostle for nearby plushies. */
+.toy.shake{animation:toyJostle .34s ease-in-out both}
+@keyframes toyJostle{
+  0%{transform:translate(0,0) rotate(var(--base-rot,0deg))}
+  22%{transform:translate(var(--shake-x,-1px),var(--shake-y,.5px)) rotate(calc(var(--base-rot,0deg) - 1.2deg))}
+  48%{transform:translate(calc(var(--shake-x,-1px) * -0.75),calc(var(--shake-y,.5px) * -1)) rotate(calc(var(--base-rot,0deg) + 1deg))}
+  72%{transform:translate(calc(var(--shake-x,-1px) * .45),calc(var(--shake-y,.5px) * .5)) rotate(calc(var(--base-rot,0deg) - .6deg))}
+  100%{transform:translate(0,0) rotate(var(--base-rot,0deg))}
+}
 #claw{position:absolute;z-index:12;width:27%;left:1.5%;top:4.0%;pointer-events:none;transition:left .06s linear,top .16s ease-out;will-change:left,top}
 #claw img{width:100%;display:block}
 #carriedToy{position:absolute;z-index:11;width:14%;display:none;pointer-events:none;transform:translate(-50%,0);filter:drop-shadow(0 6px 6px rgba(70,10,45,.22))}
@@ -90,7 +99,17 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
   user-select:none;
   -webkit-user-drag:none;
 }
-#leftPlatformForeground{
+/* 綽貓「接公仔」姿勢：獨立控制大小／位置，方便美術微調 */
+#cheukcatCharacter.catch{
+  left:5%;
+  top:33%;
+  width:26%;
+}
+#cheukcatCharacter.catch img{
+  width:100%;
+}
+/* 掉落口前景：放在綽貓前面遮住腳部 */
+#dropChuteForeground{
   position:absolute;
   z-index:9;
   left:6.5%;
@@ -122,7 +141,7 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 <div id="cheukcatCharacter">
   <img id="cheukcatCharacterImg" src="cheukcat_idle.png" alt="綽貓">
 </div>
-<img id="leftPlatformForeground" src="left_platform_foreground.png" alt="">
+<img id="dropChuteForeground" src="drop_chute_foreground.png" alt="">
 
 <div id="playfield">
 <div id="cable"></div>
@@ -192,6 +211,7 @@ function spawnToys(){
        rot=rand(-12,12);
      }
      el.style.transform=`rotate(${rot}deg)`;
+     el.style.setProperty("--base-rot", `${rot}deg`);
      el.style.zIndex=10+row;
 
      const img=document.createElement("img");
@@ -205,7 +225,9 @@ function spawnToys(){
 function updateCredit(){credit.textContent=state.credits}
 function setCheukcatPose(pose){
   if(!cheukcatCharacterImg)return;
-  cheukcatCharacterImg.src = pose==="catch" ? "cheukcat_catch.png" : "cheukcat_idle.png";
+  const isCatch = pose==="catch";
+  cheukcatCharacter.classList.toggle("catch", isCatch);
+  cheukcatCharacterImg.src = isCatch ? "cheukcat_catch.png" : "cheukcat_idle.png";
 }
 function setClaw(){claw.style.left=(state.clawX-13.5)+"%";claw.style.top=state.clawY+"%";
       if(cable){cable.style.left=(state.clawX-0.55)+"%";cable.style.height=Math.max(1,state.clawY+2.2)+"%";}if(carried.style.display!=="none"){carried.style.left=state.clawX+"%";carried.style.top=(state.clawY+19)+"%"}}
@@ -239,6 +261,25 @@ function nearestToy(){
  return fallback ? {el:fallback.el,d:fallbackD,r:fallback.r} : {el:null,d:Infinity};
 }
 function removeToy(el){if(!el)return;el.dataset.removed="1";el.style.opacity="0";setTimeout(()=>el.remove(),220)}
+function jostleNearbyToys(targetEl){
+ const fr=playfield.getBoundingClientRect();
+ const tr=targetEl.getBoundingClientRect();
+ const tx=tr.left-fr.left+tr.width/2, ty=tr.top-fr.top+tr.height/2;
+ const radius=Math.max(tr.width*1.65,fr.width*.13);
+ document.querySelectorAll(".toy").forEach(el=>{
+   if(el===targetEl||el.dataset.removed)return;
+   const r=el.getBoundingClientRect();
+   const x=r.left-fr.left+r.width/2, y=r.top-fr.top+r.height/2;
+   if(Math.hypot(x-tx,y-ty)<=radius){
+     el.style.setProperty("--shake-x", `${(Math.random()<.5?-1:1)*rand(.7,1.5)}px`);
+     el.style.setProperty("--shake-y", `${rand(.3,.8)}px`);
+     el.classList.remove("shake");
+     void el.offsetWidth;
+     el.classList.add("shake");
+     setTimeout(()=>el.classList.remove("shake"),380);
+   }
+ });
+}
 function setCollected(id){state.collected[id]=(Number(state.collected[id])||0)+1;localStorage.setItem("cheukcat_collection_v3",JSON.stringify(state.collected))}
 function award(t){setCollected(t.id);exitPrize.innerHTML=`<img class="prize" src="${t.img}" alt="${t.name}">`;toastMsg(`🎉 ${t.name} GET！${t.id==="nose"?"⭐ 超稀有！":""}`,2200);beep(t.id==="nose"?900:650,.18);setTimeout(()=>exitPrize.innerHTML="",2100)}
 async function moveClawTo(x,y,duration){const sx=state.clawX,sy=state.clawY,steps=Math.max(1,Math.round(duration/30));for(let i=1;i<=steps;i++){await wait(duration/steps);const p=i/steps;state.clawX=sx+(x-sx)*p;state.clawY=sy+(y-sy)*p;setClaw()}}
@@ -252,6 +293,10 @@ async function tryClaw(){
  const targetY=Math.max(8,Math.min(56,((tr.top-fr.top)/fr.height)*100-8));
  const horizontalGap=Math.abs(targetX-state.clawX),aligned=horizontalGap<=11;
  await moveClawTo(state.clawX,targetY,1500);
+ // Just as the claw reaches the plush, gently disturb the nearby pile.
+ // It is visual only: it does not change targeting, physics, or success chance.
+ jostleNearbyToys(target.el);
+ await wait(90);
  clawImg.src="claw_closed.png";await wait(420);
  const chance=aligned?(target.el.dataset.id==="nose"?.52:.84):0;
  if(aligned&&Math.random()<chance){
