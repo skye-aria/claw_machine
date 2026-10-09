@@ -223,11 +223,39 @@ function spawnToys(){
  });
 }
 function updateCredit(){credit.textContent=state.credits}
-function setCheukcatPose(pose){
+// 預先載入並解碼綽貓兩張姿勢圖，避免網頁版在動畫中途才載入圖片。
+const cheukcatPoseImages = {
+  idle: new Image(),
+  catch: new Image()
+};
+const cheukcatPoseReady = {
+  idle: null,
+  catch: null
+};
+function preloadCheukcatPose(pose, src){
+  const img = cheukcatPoseImages[pose];
+  img.src = src;
+  cheukcatPoseReady[pose] = (typeof img.decode === "function")
+    ? img.decode().catch(() => new Promise(resolve => {
+        if (img.complete && img.naturalWidth > 0) resolve();
+        else { img.onload = resolve; img.onerror = resolve; }
+      }))
+    : new Promise(resolve => {
+        if (img.complete && img.naturalWidth > 0) resolve();
+        else { img.onload = resolve; img.onerror = resolve; }
+      });
+}
+preloadCheukcatPose("idle", "cheukcat_idle.png");
+preloadCheukcatPose("catch", "cheukcat_catch.png");
+
+async function setCheukcatPose(pose){
   if(!cheukcatCharacterImg)return;
   const isCatch = pose==="catch";
-  cheukcatCharacter.classList.toggle("catch", isCatch);
+  const key = isCatch ? "catch" : "idle";
+  // 先等圖片完成載入／解碼，再同一刻切換圖片與位置，避免舊姿勢先升起。
+  if (cheukcatPoseReady[key]) await cheukcatPoseReady[key];
   cheukcatCharacterImg.src = isCatch ? "cheukcat_catch.png" : "cheukcat_idle.png";
+  cheukcatCharacter.classList.toggle("catch", isCatch);
 }
 function setClaw(){claw.style.left=(state.clawX-13.5)+"%";claw.style.top=state.clawY+"%";
       if(cable){cable.style.left=(state.clawX-0.55)+"%";cable.style.height=Math.max(1,state.clawY+2.2)+"%";}if(carried.style.display!=="none"){carried.style.left=state.clawX+"%";carried.style.top=(state.clawY+19)+"%"}}
@@ -303,7 +331,7 @@ async function tryClaw(){
    const type=TYPES.find(x=>x.id===target.el.dataset.id);removeToy(target.el);
    carriedImg.src=type.img;carried.style.display="block";setClaw();claw.classList.add("carry");
    await moveClawTo(state.clawX,7,1300);await moveClawTo(15,7,1900);
-   setCheukcatPose("catch");
+   await setCheukcatPose("catch");
    await wait(120);
    clawImg.src="claw_open.png";
 
@@ -323,13 +351,13 @@ async function tryClaw(){
       carried.style.display="none";
       claw.classList.remove("carry");
       await wait(180);
-      setCheukcatPose("idle");
+      await setCheukcatPose("idle");
    award(type);
    if(toysEl.querySelectorAll(".toy").length===0){await wait(500);spawnToys();toastMsg("🧸 公仔補充完成！繼續挑戰吧～",1500)}
  }else{clawImg.src="claw_open.png";await wait(220);toastMsg(aligned?"抓到了！但滑掉了～":"爪子還差一點，再慢慢對準～",1300);beep(240,.10)}
  await moveClawTo(15,4,1100);
  buttonImg.src="button_normal.png";
- setCheukcatPose("idle");
+ await setCheukcatPose("idle");
  state.busy=false;
  if(state.credits===0)toastMsg("本次 3 次機會用完！再投入 $500SC 試試吧～",2200);
 }
