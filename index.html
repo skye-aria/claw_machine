@@ -50,6 +50,30 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 #collectionBtn,#soundBtn{position:absolute;z-index:30;border:0;background:rgba(255,255,255,.78);color:#7a2c58;border-radius:999px;font-weight:800;box-shadow:0 3px 10px rgba(100,20,70,.18);cursor:pointer}
 #collectionBtn{right:2.5%;top:2%;padding:.7em 1em;font-size:clamp(10px,1.8vw,14px)}
 #soundBtn{left:2.5%;top:2%;padding:.55em .75em;font-size:clamp(10px,1.8vw,14px)}
+/* YouTube 頻道小圖：先點一下放大提示，再點一次才開新分頁 */
+#youtubeLink{
+  position:absolute;
+  z-index:31;
+  left:67%;
+  top:62.7%;
+  width:27%;
+  display:block;
+  line-height:0;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-user-drag:none;
+  transform-origin:left bottom;
+  transition:transform .18s ease,filter .18s ease;
+}
+#youtubeLink img{width:100%;height:auto;display:block;pointer-events:none;-webkit-user-drag:none}
+#youtubeLink.armed{transform:scale(1.08);filter:drop-shadow(0 0 7px rgba(255,255,255,.95))}
+#youtubeLink .ytPrompt{
+  position:absolute;left:auto;right:0;bottom:calc(100% + 5px);
+  padding:5px 8px;border-radius:12px;background:rgba(90,28,67,.94);color:#fff;
+  font-size:clamp(9px,1.5vw,12px);font-weight:900;line-height:1.3;white-space:nowrap;
+  opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s;pointer-events:none;
+}
+#youtubeLink.armed .ytPrompt{opacity:1;transform:translateY(0)}
 #hint{position:absolute;z-index:29;left:50%;top:13%;transform:translateX(-50%);background:rgba(255,255,255,.86);padding:.45em .8em;border-radius:999px;color:#713052;font-weight:800;font-size:clamp(9px,1.6vw,12px);white-space:nowrap;opacity:0;transition:opacity .3s}
 #hint.show{opacity:1}
 #toast{position:fixed;left:50%;bottom:8%;transform:translateX(-50%) scale(.9);z-index:120;background:rgba(80,22,58,.94);color:white;padding:12px 18px;border-radius:999px;font-weight:900;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;text-align:center}
@@ -142,6 +166,7 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
   <img id="cheukcatCharacterImg" src="cheukcat_idle.png" alt="綽貓">
 </div>
 <img id="dropChuteForeground" src="drop_chute_foreground.png" alt="">
+<a id="youtubeLink" href="https://www.youtube.com/@CheukCat_hkvtuber" target="_blank" rel="noopener noreferrer" aria-label="點一下確認，再點一下前往綽貓喵 YouTube 頻道"><img src="youtube_banner.png" alt="綽貓喵 YouTube 頻道"><span class="ytPrompt">再點一下前往 YouTube · 點其他位置取消</span></a>
 
 <div id="playfield">
 <div id="cable"></div>
@@ -159,6 +184,56 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 <div id="toast"></div>
 <div id="modal"><div class="panel"><h2>綽貓喵公仔收藏</h2><div id="collection" class="collection"></div><div id="count"></div><br><button class="close" id="closeModal">返回遊戲</button></div></div>
 <script>
+/* =========================
+   🎵 音量設定（0.0～1.0）
+   ComfyUI 生成的音檔可能很大聲，先用保守音量；可自行微調。
+   ========================= */
+const AUDIO_VOLUME = {
+  bgm: 0.03,          // 背景音樂：15%
+  clawMove: 0.07,     // 爪子左右移動：18%
+  clawDown: 0.05,     // 爪子下降：20%
+  moneyInsert: 0.10,  // 投入鈔票：18%
+  prizeDrop: 0.10     // 成功夾到、公仔掉落：22%
+};
+const audioFiles = {
+  bgm: new Audio("bgm.mp3"),
+  clawMove: new Audio("claw_move.mp3"),
+  clawDown: new Audio("claw_down.mp3"),
+  moneyInsert: new Audio("money_insert.mp3"),
+  prizeDrop: new Audio("prize_drop.mp3")
+};
+audioFiles.bgm.loop = true;
+audioFiles.clawMove.loop = true;
+Object.entries(audioFiles).forEach(([key,audio])=>{
+  audio.preload = "auto";
+  audio.volume = AUDIO_VOLUME[key] ?? 0.2;
+});
+let bgmStarted = false;
+function startBgm(){
+  if(!state.sound || bgmStarted) return;
+  bgmStarted = true;
+  audioFiles.bgm.play().catch(()=>{ bgmStarted = false; });
+}
+function playAudio(key, restart=true){
+  if(!state.sound) return;
+  const audio=audioFiles[key];
+  if(!audio) return;
+  if(restart){audio.pause();try{audio.currentTime=0}catch(e){}}
+  audio.play().catch(()=>{});
+}
+function stopAudio(key, rewind=false){
+  const audio=audioFiles[key];
+  if(!audio) return;
+  audio.pause();
+  if(rewind){try{audio.currentTime=0}catch(e){}}
+}
+function startClawMoveSound(){
+  if(!state.sound) return;
+  startBgm();
+  const audio=audioFiles.clawMove;
+  if(audio.paused){try{audio.currentTime=0}catch(e){} audio.play().catch(()=>{});}
+}
+
 const TYPES=[
 {id:"samon",name:"三文貓",img:"character_samon_cat.png",rarity:"普通",scale:.18},
 {id:"onion",name:"蔥豬",img:"character_onion_pig.png",rarity:"稀有",scale:.19},
@@ -223,45 +298,25 @@ function spawnToys(){
  });
 }
 function updateCredit(){credit.textContent=state.credits}
-// 預先載入並解碼綽貓兩張姿勢圖，避免網頁版在動畫中途才載入圖片。
-const cheukcatPoseImages = {
-  idle: new Image(),
-  catch: new Image()
-};
-const cheukcatPoseReady = {
-  idle: null,
-  catch: null
-};
-function preloadCheukcatPose(pose, src){
-  const img = cheukcatPoseImages[pose];
-  img.src = src;
-  cheukcatPoseReady[pose] = (typeof img.decode === "function")
-    ? img.decode().catch(() => new Promise(resolve => {
-        if (img.complete && img.naturalWidth > 0) resolve();
-        else { img.onload = resolve; img.onerror = resolve; }
-      }))
-    : new Promise(resolve => {
-        if (img.complete && img.naturalWidth > 0) resolve();
-        else { img.onload = resolve; img.onerror = resolve; }
-      });
-}
-preloadCheukcatPose("idle", "cheukcat_idle.png");
-preloadCheukcatPose("catch", "cheukcat_catch.png");
-
-async function setCheukcatPose(pose){
+function setCheukcatPose(pose){
   if(!cheukcatCharacterImg)return;
   const isCatch = pose==="catch";
-  const key = isCatch ? "catch" : "idle";
-  // 先等圖片完成載入／解碼，再同一刻切換圖片與位置，避免舊姿勢先升起。
-  if (cheukcatPoseReady[key]) await cheukcatPoseReady[key];
-  cheukcatCharacterImg.src = isCatch ? "cheukcat_catch.png" : "cheukcat_idle.png";
   cheukcatCharacter.classList.toggle("catch", isCatch);
+  cheukcatCharacterImg.src = isCatch ? "cheukcat_catch.png" : "cheukcat_idle.png";
 }
 function setClaw(){claw.style.left=(state.clawX-13.5)+"%";claw.style.top=state.clawY+"%";
       if(cable){cable.style.left=(state.clawX-0.55)+"%";cable.style.height=Math.max(1,state.clawY+2.2)+"%";}if(carried.style.display!=="none"){carried.style.left=state.clawX+"%";carried.style.top=(state.clawY+19)+"%"}}
 function toastMsg(msg,ms=1500){toast.textContent=msg;toast.classList.add("show");clearTimeout(toastMsg.t);toastMsg.t=setTimeout(()=>toast.classList.remove("show"),ms)}
 function beep(freq=500,dur=.08){if(!state.sound)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=beep.ctx||(beep.ctx=new C()),o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;o.type="sine";g.gain.value=.045;o.connect(g);g.connect(c.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.stop(c.currentTime+dur)}catch(e){}}
-function moveJoystick(dx){if(state.busy||state.credits<=0)return;state.clawX=Math.max(15,Math.min(85,state.clawX+dx));setClaw();stick.style.transform=`rotate(${dx>0?18:-18}deg)`;clearTimeout(moveJoystick.t);moveJoystick.t=setTimeout(()=>stick.style.transform="rotate(0deg)",100)}
+function moveJoystick(dx){
+ if(state.busy||state.credits<=0)return;
+ const oldX=state.clawX;
+ state.clawX=Math.max(15,Math.min(85,state.clawX+dx));
+ setClaw();
+ if(Math.abs(state.clawX-oldX)>.001){startClawMoveSound();clearTimeout(moveJoystick.soundT);moveJoystick.soundT=setTimeout(()=>stopAudio("clawMove"),220);}
+ stick.style.transform=`rotate(${dx>0?18:-18}deg)`;
+ clearTimeout(moveJoystick.t);moveJoystick.t=setTimeout(()=>stick.style.transform="rotate(0deg)",100)
+}
 function nearestToy(){
  const fr=playfield.getBoundingClientRect(),cr=claw.getBoundingClientRect();
  const clawCx=(cr.left-fr.left)+cr.width/2;
@@ -310,9 +365,18 @@ function jostleNearbyToys(targetEl){
 }
 function setCollected(id){state.collected[id]=(Number(state.collected[id])||0)+1;localStorage.setItem("cheukcat_collection_v3",JSON.stringify(state.collected))}
 function award(t){setCollected(t.id);exitPrize.innerHTML=`<img class="prize" src="${t.img}" alt="${t.name}">`;toastMsg(`🎉 ${t.name} GET！${t.id==="nose"?"⭐ 超稀有！":""}`,2200);beep(t.id==="nose"?900:650,.18);setTimeout(()=>exitPrize.innerHTML="",2100)}
-async function moveClawTo(x,y,duration){const sx=state.clawX,sy=state.clawY,steps=Math.max(1,Math.round(duration/30));for(let i=1;i<=steps;i++){await wait(duration/steps);const p=i/steps;state.clawX=sx+(x-sx)*p;state.clawY=sy+(y-sy)*p;setClaw()}}
+async function moveClawTo(x,y,duration){
+ const sx=state.clawX,sy=state.clawY,steps=Math.max(1,Math.round(duration/30));
+ const horizontal=Math.abs(x-sx)>.05;
+ if(horizontal)startClawMoveSound();
+ for(let i=1;i<=steps;i++){
+   await wait(duration/steps);const p=i/steps;
+   state.clawX=sx+(x-sx)*p;state.clawY=sy+(y-sy)*p;setClaw();
+ }
+ if(horizontal)stopAudio("clawMove");
+}
 async function tryClaw(){
- if(state.busy||state.credits<=0)return;state.busy=true;state.credits--;updateCredit();buttonImg.src="button_pressed.png";beep(330,.08);
+ if(state.busy||state.credits<=0)return;startBgm();stopAudio("clawMove");state.busy=true;state.credits--;updateCredit();buttonImg.src="button_pressed.png";beep(330,.08);
  const target=nearestToy();
  if(!target.el){state.busy=false;buttonImg.src="button_normal.png";return}
  const tr=target.r || target.el.getBoundingClientRect(), fr=playfield.getBoundingClientRect();
@@ -320,7 +384,9 @@ async function tryClaw(){
  // Descend only to the selected topmost toy.
  const targetY=Math.max(8,Math.min(56,((tr.top-fr.top)/fr.height)*100-8));
  const horizontalGap=Math.abs(targetX-state.clawX),aligned=horizontalGap<=11;
+ playAudio("clawDown");
  await moveClawTo(state.clawX,targetY,1500);
+ stopAudio("clawDown");
  // Just as the claw reaches the plush, gently disturb the nearby pile.
  // It is visual only: it does not change targeting, physics, or success chance.
  jostleNearbyToys(target.el);
@@ -331,7 +397,7 @@ async function tryClaw(){
    const type=TYPES.find(x=>x.id===target.el.dataset.id);removeToy(target.el);
    carriedImg.src=type.img;carried.style.display="block";setClaw();claw.classList.add("carry");
    await moveClawTo(state.clawX,7,1300);await moveClawTo(15,7,1900);
-   await setCheukcatPose("catch");
+   setCheukcatPose("catch");
    await wait(120);
    clawImg.src="claw_open.png";
 
@@ -345,33 +411,59 @@ async function tryClaw(){
       carried.style.transform="translate(-50%,0) scale(1)";
       carried.style.transition="top .75s ease-in";
       await wait(80);
+      playAudio("prizeDrop");
       carried.style.top="73%";
       await wait(760);
       carried.style.transition="";
       carried.style.display="none";
       claw.classList.remove("carry");
       await wait(180);
-      await setCheukcatPose("idle");
+      setCheukcatPose("idle");
    award(type);
    if(toysEl.querySelectorAll(".toy").length===0){await wait(500);spawnToys();toastMsg("🧸 公仔補充完成！繼續挑戰吧～",1500)}
  }else{clawImg.src="claw_open.png";await wait(220);toastMsg(aligned?"抓到了！但滑掉了～":"爪子還差一點，再慢慢對準～",1300);beep(240,.10)}
  await moveClawTo(15,4,1100);
  buttonImg.src="button_normal.png";
- await setCheukcatPose("idle");
+ setCheukcatPose("idle");
  state.busy=false;
  if(state.credits===0)toastMsg("本次 3 次機會用完！再投入 $500SC 試試吧～",2200);
 }
 let joyActive=false,joyPointerX=0,joyTimer=null;
 function joyLoop(){if(!joyActive||state.busy||state.credits<=0)return;const r=joystick.getBoundingClientRect(),center=r.left+r.width/2,dx=joyPointerX-center,step=Math.max(-0.55,Math.min(0.55,dx/r.width*1.25));if(Math.abs(dx)>4)moveJoystick(step)}
-joystick.addEventListener("pointerdown",e=>{if(state.busy||state.credits<=0)return;e.preventDefault();joyActive=true;joyPointerX=e.clientX;joystick.setPointerCapture?.(e.pointerId);clearInterval(joyTimer);joyTimer=setInterval(joyLoop,35)});
+joystick.addEventListener("pointerdown",e=>{if(state.busy||state.credits<=0)return;startBgm();e.preventDefault();joyActive=true;joyPointerX=e.clientX;joystick.setPointerCapture?.(e.pointerId);clearInterval(joyTimer);joyTimer=setInterval(joyLoop,35)});
 joystick.addEventListener("pointermove",e=>{if(!joyActive)return;e.preventDefault();joyPointerX=e.clientX;joyLoop()});
-["pointerup","pointercancel","lostpointercapture"].forEach(ev=>joystick.addEventListener(ev,e=>{joyActive=false;clearInterval(joyTimer);joyTimer=null;stick.style.transform="rotate(0deg)"}));
-button.addEventListener("pointerdown",e=>{e.preventDefault();tryClaw()});
+["pointerup","pointercancel","lostpointercapture"].forEach(ev=>joystick.addEventListener(ev,e=>{joyActive=false;clearInterval(joyTimer);joyTimer=null;stopAudio("clawMove");stick.style.transform="rotate(0deg)"}));
+button.addEventListener("pointerdown",e=>{e.preventDefault();startBgm();tryClaw()});
 window.addEventListener("keydown",e=>{if(e.key==="ArrowLeft"){e.preventDefault();moveJoystick(-0.8)}if(e.key==="ArrowRight"){e.preventDefault();moveJoystick(0.8)}if(e.key===" "){e.preventDefault();tryClaw()}});
-money.addEventListener("click",()=>{if(state.busy)return;if(state.credits>0){toastMsg("還有機會喔！先用完目前的 CREDIT～");return}money.classList.remove("insert");void money.offsetWidth;money.classList.add("insert");state.credits=3;updateCredit();beep(520,.12);setTimeout(()=>money.style.opacity="0",650);setTimeout(()=>{money.style.opacity="1";money.classList.remove("insert")},1100);toastMsg("💵 $500SC 投入成功！3 次機會！",1700)});
-document.getElementById("soundBtn").addEventListener("click",e=>{state.sound=!state.sound;e.currentTarget.textContent=state.sound?"🔊":"🔇"});
+money.addEventListener("click",()=>{if(state.busy)return;startBgm();if(state.credits>0){toastMsg("還有機會喔！先用完目前的 CREDIT～");return}money.classList.remove("insert");void money.offsetWidth;money.classList.add("insert");state.credits=3;updateCredit();playAudio("moneyInsert");beep(520,.12);setTimeout(()=>money.style.opacity="0",650);setTimeout(()=>{money.style.opacity="1";money.classList.remove("insert")},1100);toastMsg("💵 $500SC 投入成功！3 次機會！",1700)});
+document.getElementById("soundBtn").addEventListener("click",e=>{
+ state.sound=!state.sound;
+ e.currentTarget.textContent=state.sound?"🔊":"🔇";
+ if(!state.sound){Object.values(audioFiles).forEach(a=>a.pause());}
+ else if(bgmStarted){audioFiles.bgm.play().catch(()=>{});}
+});
 document.getElementById("collectionBtn").addEventListener("click",()=>{const c=document.getElementById("collection");c.innerHTML=TYPES.map(t=>{const n=Number(state.collected[t.id])||0;return `<div class="card"><img src="${t.img}" alt="${t.name}"><div class="name">${n?"✓ ":"🔒 "}${t.name}</div><div class="status">${n?t.rarity:"尚未取得"}</div><div class="qty">已夾到：${n} 隻</div></div>`}).join("");const total=TYPES.reduce((a,t)=>a+(Number(state.collected[t.id])||0),0),kinds=TYPES.filter(t=>(Number(state.collected[t.id])||0)>0).length;document.getElementById("count").textContent=`收藏種類：${kinds} / ${TYPES.length}　｜　總共夾到：${total} 隻`;document.getElementById("modal").classList.add("show")});
 document.getElementById("closeModal").addEventListener("click",()=>document.getElementById("modal").classList.remove("show"));
+// YouTube：第一次點擊只放大提示；第二次才開新分頁。點其他位置會取消。
+const youtubeLink=document.getElementById("youtubeLink");
+let youtubeArmed=false;
+youtubeLink.addEventListener("click",e=>{
+  e.preventDefault();
+  if(!youtubeArmed){
+    youtubeArmed=true;youtubeLink.classList.add("armed");
+    toastMsg("📺 再點一下宣傳圖，就會開啟綽貓喵 YouTube！",2200);
+    return;
+  }
+  youtubeArmed=false;youtubeLink.classList.remove("armed");
+  const win=window.open(youtubeLink.href,"_blank","noopener,noreferrer");
+  if(!win)toastMsg("瀏覽器可能阻擋新視窗，請允許開啟新分頁。",2600);
+});
+document.addEventListener("pointerdown",e=>{
+  if(youtubeArmed && !youtubeLink.contains(e.target)){
+    youtubeArmed=false;youtubeLink.classList.remove("armed");
+  }
+},{capture:true});
+
 spawnToys();updateCredit();setClaw();setTimeout(()=>document.getElementById("hint").classList.add("show"),400);setTimeout(()=>document.getElementById("hint").classList.remove("show"),3800);
 
 document.addEventListener("contextmenu",e=>{
