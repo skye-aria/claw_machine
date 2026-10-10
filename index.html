@@ -107,9 +107,8 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
   position:absolute;
   z-index:8;
   left:6.5%;
-  top:38%;
+  top:39%;
   width:25.5%;
-  height:36%; /* 固定角色容器高度，避免雙圖預載後容器塌陷 */
   pointer-events:none;
   user-select:none;
   -webkit-user-select:none;
@@ -117,22 +116,12 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
   -webkit-user-drag:none;
 }
 #cheukcatCharacter img{
-  position:absolute;
-  left:0;
-  top:0;
+  width:93%;
   height:auto;
   display:block;
   pointer-events:none;
   user-select:none;
   -webkit-user-drag:none;
-  opacity:0;
-  visibility:hidden;
-}
-/* 待機／生氣姿勢：圖片先常駐，切換時不再臨時下載 */
-#cheukcatIdleImg{
-  width:93%;
-  opacity:1;
-  visibility:visible;
 }
 /* 綽貓「接公仔」姿勢：獨立控制大小／位置，方便美術微調 */
 #cheukcatCharacter.catch{
@@ -140,16 +129,8 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
   top:33%;
   width:26%;
 }
-#cheukcatCatchImg{
+#cheukcatCharacter.catch img{
   width:100%;
-}
-#cheukcatCharacter.catch #cheukcatIdleImg{
-  opacity:0;
-  visibility:hidden;
-}
-#cheukcatCharacter.catch #cheukcatCatchImg{
-  opacity:1;
-  visibility:visible;
 }
 /* 掉落口前景：放在綽貓前面遮住腳部 */
 #dropChuteForeground{
@@ -182,8 +163,7 @@ body{display:flex;justify-content:center;align-items:flex-start;padding:8px}
 <div id="hint">投入 $500SC → 3 次機會｜拖住搖桿移動</div>
 
 <div id="cheukcatCharacter">
-  <img id="cheukcatIdleImg" src="cheukcat_idle.png" alt="綽貓待機／生氣姿勢" fetchpriority="high">
-  <img id="cheukcatCatchImg" src="cheukcat_catch.png" alt="綽貓飛身接公仔姿勢" fetchpriority="high">
+  <img id="cheukcatCharacterImg" src="cheukcat_idle.png" alt="綽貓">
 </div>
 <img id="dropChuteForeground" src="drop_chute_foreground.png" alt="">
 <a id="youtubeLink" href="https://www.youtube.com/@CheukCat_hkvtuber" target="_blank" rel="noopener noreferrer" aria-label="點一下確認，再點一下前往綽貓喵 YouTube 頻道"><img src="youtube_banner.png" alt="綽貓喵 YouTube 頻道"><span class="ytPrompt">再點一下前往 綽貓喵YouTube · 點其他位置取消</span></a>
@@ -263,23 +243,7 @@ const savedCollection=JSON.parse(localStorage.getItem("cheukcat_collection_v3")|
 Object.keys(savedCollection).forEach(k=>{savedCollection[k]=Number(savedCollection[k])||0});
 const state={credits:0,clawX:15,clawY:4,busy:false,sound:true,collected:savedCollection};
 const cheukcatCharacter=document.getElementById("cheukcatCharacter");
-const cheukcatIdleImg=document.getElementById("cheukcatIdleImg");
-const cheukcatCatchImg=document.getElementById("cheukcatCatchImg");
-
-// 兩個姿勢一開始就載入並解碼，避免網頁版動畫開始後才換圖而延遲。
-// HTML 內已放好兩張圖；此處再確認解碼完成，不改變遊戲流程。
-const cheukcatImagesReady = Promise.all([cheukcatIdleImg, cheukcatCatchImg].map(img => {
-  img.loading = "eager";
-  img.decoding = "sync";
-  if (img.complete && img.naturalWidth > 0) {
-    return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
-  }
-  return new Promise(resolve => {
-    const finish = () => (img.decode ? img.decode().catch(() => {}).finally(resolve) : resolve());
-    img.addEventListener("load", finish, {once:true});
-    img.addEventListener("error", resolve, {once:true});
-  });
-}));
+const cheukcatCharacterImg=document.getElementById("cheukcatCharacterImg");
 const cable=document.getElementById("cable");
 const playfield=document.getElementById("playfield"),toysEl=document.getElementById("toys"),claw=document.getElementById("claw"),clawImg=document.getElementById("clawImg"),carried=document.getElementById("carriedToy"),carriedImg=document.getElementById("carriedToyImg"),stick=document.getElementById("joystickStick"),credit=document.getElementById("credit"),money=document.getElementById("money"),button=document.getElementById("button"),buttonImg=document.getElementById("buttonImg"),dropToy=document.getElementById("dropToy"),exitPrize=document.getElementById("exitPrize"),toast=document.getElementById("toast"),joystick=document.getElementById("joystick");
 const rand=(a,b)=>a+Math.random()*(b-a),wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -335,17 +299,11 @@ function spawnToys(){
 }
 function updateCredit(){credit.textContent=state.credits}
 function setCheukcatPose(pose){
-  if(!cheukcatCharacter || !cheukcatIdleImg || !cheukcatCatchImg)return;
+  if(!cheukcatCharacterImg)return;
   const isCatch = pose==="catch";
-  // 兩張圖都預載常駐；明確同步兩張圖的可見狀態，避免待機／生氣圖被留在隱藏狀態。
   cheukcatCharacter.classList.toggle("catch", isCatch);
-  cheukcatIdleImg.style.opacity = isCatch ? "0" : "1";
-  cheukcatIdleImg.style.visibility = isCatch ? "hidden" : "visible";
-  cheukcatCatchImg.style.opacity = isCatch ? "1" : "0";
-  cheukcatCatchImg.style.visibility = isCatch ? "visible" : "hidden";
+  cheukcatCharacterImg.src = isCatch ? "cheukcat_catch.png" : "cheukcat_idle.png";
 }
-// 初始畫面一定顯示待機／生氣綽貓，不等待圖片解碼才決定顯示狀態。
-setCheukcatPose("idle");
 function setClaw(){claw.style.left=(state.clawX-13.5)+"%";claw.style.top=state.clawY+"%";
       if(cable){cable.style.left=(state.clawX-0.55)+"%";cable.style.height=Math.max(1,state.clawY+2.2)+"%";}if(carried.style.display!=="none"){carried.style.left=state.clawX+"%";carried.style.top=(state.clawY+19)+"%"}}
 function toastMsg(msg,ms=1500){toast.textContent=msg;toast.classList.add("show");clearTimeout(toastMsg.t);toastMsg.t=setTimeout(()=>toast.classList.remove("show"),ms)}
